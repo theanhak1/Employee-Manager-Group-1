@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Camera Stream</title>
+</head>
+<body>
+  <h1>Employee Manage</h1>
+  <video id="videoElement" autoplay></video>
+  <div>
+    <h2>Results</h2>
+    <textarea id="results" rows="4" cols="50" readonly></textarea>
+  </div>
+  
+  <script>
+    // Get access to the camera
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(function(stream) {
+        var videoElement = document.getElementById('videoElement');
+        videoElement.srcObject = stream;
+      })
+      .catch(function(error) {
+        console.error('Error accessing the camera:', error);
+      });
+      
+    // Function to display results
+    function displayResults(result) {
+      var resultsTextArea = document.getElementById('results');
+      resultsTextArea.value += result + '\n'; // Append new result
+    }
+    
+    // Example function to simulate displaying results
+    setInterval(function() {
+      var fakeResult = 'Fake result ' + Math.random(); // Generate fake result
+      displayResults(fakeResult);
+    }, 2000); // Update every 2 seconds (for demonstration)
+  </script>
+</body>
+</html>
