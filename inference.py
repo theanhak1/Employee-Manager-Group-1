@@ -1,81 +1,64 @@
-import sys
-sys.path.append('./')
-import cv2
-import numpy as np
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torchvision.transforms as transforms
+from torchvision.models import resnet18
 from PIL import Image
-from torchvision import transforms
-from greet_detection.model import ComplexDenseClassifier, preprocess_keypoints, yolo_model
-from greet_detection.data import get_all_paths, ResizeAndPad
 
+# Define device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-USE_CUDA = True
-is_cuda = torch.cuda.is_available()
-resize_and_pad = ResizeAndPad(384, 384)
+# Define model path
+model_path = "dress_verification/checkpoints/cloth_classification.pth"
 
-# if __name__ == "__main__":
-# Hyperparameters
-input_size = 17 * 2
-hidden_sizes = [64, 512, 256, 64]
-output_size = 1
+# Load pre-trained ResNet18 model
+def load_model():
+    model = resnet18(pretrained=False)
+    num_ftrs = model.fc.in_features
+    model.fc = nn.Linear(num_ftrs, 2)
+    model.load_state_dict(torch.load(model_path))
+    return model.to(device)
 
-# Load the model outside of the scripted function
-model_path = 'greet_detection/checkpoints/greeting_model.pth'
-model = ComplexDenseClassifier(input_size, hidden_sizes, output_size).to('cuda' if is_cuda and USE_CUDA else 'cpu')
-model.load_state_dict(torch.load(model_path))
-model.eval()
-
-def scripted_predict_greeting(img_tensor: torch.Tensor) -> float:
-    with torch.no_grad():
-        results_batch = yolo_model(img_tensor)
-        # Preprocess the keypoints
-        keypoints_batch = [preprocess_keypoints(results) for results in results_batch]
-        keypoints_batch = torch.cat(keypoints_batch, dim=0)
-
-        keypoints_batch = keypoints_batch.to('cuda' if is_cuda and USE_CUDA else 'cpu')
-
-        output = model(keypoints_batch)
-    probability = torch.sigmoid(output).item()
-    return probability
-
-def load_and_preprocess_image(image):
+# Preprocess image
+def preprocess_image(image_path):
+    image = Image.open(image_path).convert('RGB') if isinstance(image_path, str) else image_path
+    image.save("dress_verification/processed_image.jpg")
     transform = transforms.Compose([
-        resize_and_pad,
-        transforms.ToTensor()
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-    img = Image.open(image).convert('RGB') if isinstance(image, str) else image
-    # Save a unique image for each inference
-    # img.save(f'greet_detection/images/{str(time.time())}.jpg')
-    img_tensor = transform(img).unsqueeze(0)  # Add batch dimension
-    return img_tensor
+    input_image = transform(image)
+    return input_image.unsqueeze(0).to(device)
 
-import time
+# Perform inference
+def predict_image_class(model, input_image):
+    model.eval()
+    with torch.no_grad():
+        output = model(input_image)
+    probabilities = F.softmax(output, dim=1)
+    predicted_class = torch.argmax(probabilities, dim=1).item()
+    return predicted_class
 
-def perform_greeting_inference(image_dir: str, threshold: float = 0.5, verbose: bool=True):
-    image_paths = get_all_paths(image_dir, ["jpg", "png", "jpeg", "JPG", "PNG", "JPEG"]) if isinstance(image_dir, str) else image_dir
-    results = []
-    start_time = time.time()
-    for image_path in image_paths:
-        # Example usage for inference
-        img = load_and_preprocess_image(image_path)
-        img_tensor = img.to('cuda' if is_cuda and USE_CUDA else 'cpu')
-        prediction = scripted_predict_greeting(img_tensor)
+# Get class label
+def get_class_label(predicted_class):
+    class_labels = ['correct', 'incorrect']
+    return class_labels[predicted_class]
 
-        # Define a threshold for classification
-        threshold = 0.5
-        result =  prediction > threshold # True if greeting, False if not
-        if verbose: print(f"Prediction: {prediction} for {image_path}, Result: {'''Greetings!''' if result else '''Not a greeting.'''}")
-        results.append(result)
+def perform_dress_verification(image_path) -> str:
+    # Load model
+    model = load_model()
 
-    end_time = time.time()
-    execution_time = end_time - start_time
-    if verbose: print(f"Execution time: {execution_time} seconds")
+    # Load and preprocess the image
+    input_image = preprocess_image(image_path)
 
-    return results
+    # Perform inference
+    predicted_class = predict_image_class(model, input_image)
 
+    # Get the class label
+    predicted_label = get_class_label(predicted_class)
 
+    return predicted_label
 
 if __name__ == "__main__":
-
-    image_dir = 'greet_detection/images/'
-    perform_greeting_inference(image_dir, verbose=True)
+    perform_dress_verification()
