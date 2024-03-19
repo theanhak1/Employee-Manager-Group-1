@@ -1,0 +1,13 @@
+facenet_pytorch==2.5.3
+icrawler==0.6.7
+matplotlib==3.8.3
+numpy==1.26.4
+opencv_contrib_python==4.9.0.80
+opencv_python==4.9.0.80
+opencv_python_headless==4.8.0.74
+Pillow==10.2.0
+streamlit==1.32.2
+torch==2.2.0+cu118
+torchvision==0.17.0+cu118
+tqdm==4.65.2
+ultralytics==8.1.23
